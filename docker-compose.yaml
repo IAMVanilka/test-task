@@ -1,0 +1,11 @@
+services:
+  test-app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SUPER_ADMIN_USERNAME=super_admin
+      - SUPER_ADMIN_PASSWORD=test
+      - SQLALCHEMY_DATABASE_URL=sqlite:///./database/app.db
+    volumes:
+      - ./data:/app/database
