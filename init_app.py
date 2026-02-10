@@ -1,11 +1,12 @@
-import os
+import os, asyncio
 
-from modules.db.database import create_tables
+from modules.db.database import engine, metadata_obj
 from modules.db.queryes import add_new_user, get_user_data
 
-def initialize_app():
+async def initialize_app():
     try:
-        create_tables()
+        async with engine.begin() as conn:
+            await conn.run_sync(metadata_obj.create_all)
 
         SUPER_ADMIN_USERNAME = os.getenv("SUPER_ADMIN_USERNAME")
         SUPER_ADMIN_PASSWORD = os.getenv("SUPER_ADMIN_PASSWORD")
@@ -14,11 +15,11 @@ def initialize_app():
             print("Ошибка: SUPER_ADMIN_USERNAME и SUPER_ADMIN_PASSWORD должны быть заданы!")
             return
 
-        user_data = get_user_data(SUPER_ADMIN_USERNAME)
+        user_data = await get_user_data(SUPER_ADMIN_USERNAME)
         if user_data and user_data.role == "superadmin":
             return
 
-        add_new_user(
+        await add_new_user(
             username=SUPER_ADMIN_USERNAME,
             password=SUPER_ADMIN_PASSWORD,
             role="superadmin"
@@ -29,4 +30,4 @@ def initialize_app():
         print("ОШИБКА СОЗДАНИЯ СУПЕРАДМИНА В БАЗЕ ДАННЫХ! Текст ошибки: \n", e)
 
 if __name__ == "__main__":
-    initialize_app()
+    asyncio.run(initialize_app())

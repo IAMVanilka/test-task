@@ -10,12 +10,12 @@ class RoleChecker:
     def __init__(self, allowed_roles: list[str]):
         self.allowed_roles = allowed_roles
 
-    def __call__(self, x_api_token: str = Header(..., alias="x-api-token")):
+    async def __call__(self, x_api_token: str = Header(..., alias="x-api-token")):
         token = x_api_token
         if not token:
             raise HTTPException(status_code=401, detail="x-api-token is missing")
 
-        user = get_user_data(token=token)
+        user = await get_user_data(token=token)
         if not user:
             raise HTTPException(
                 status_code=403,
@@ -32,7 +32,7 @@ class RoleChecker:
 
 
 async def check_user_password(user_data: UserWithPassword) -> dict:
-    user_db_data = get_user_data(username=user_data.username)
+    user_db_data = await get_user_data(username=user_data.username)
     if not user_db_data or not verify_password(user_data.password, user_db_data.password):
         raise HTTPException(
             status_code=403,
@@ -58,7 +58,7 @@ auth_router = APIRouter(prefix="/api/auth", tags=['Авторизация пол
 )
 async def authorization(user_data = Depends(check_user_password)):
     token = generate_token()
-    success = update_user_token(token, user_data.username)
+    success = await update_user_token(token, user_data.username)
     if not success:
         raise HTTPException(status_code=500, detail="Database error!")
     else:
@@ -86,7 +86,7 @@ async def authorization(user_data = Depends(check_user_password)):
     }
 )
 async def get_list(limit: int = 100, offset: int = 0, role: UserRole = None, order_by: str = "id", order_desc: bool = False):
-    users_list = get_all_users(limit=limit, offset=offset, role=role, order_by=order_by, order_desc=order_desc)
+    users_list = await get_all_users(limit=limit, offset=offset, role=role, order_by=order_by, order_desc=order_desc)
     return users_list
 
 @main_router.get(
@@ -106,7 +106,7 @@ async def get_list(limit: int = 100, offset: int = 0, role: UserRole = None, ord
     }
 )
 async def get_user(username: str = None, user_role = Depends(RoleChecker(allowed_roles=["user", "admin", "superadmin"]))):
-    user_data = get_user_data(username)
+    user_data = await get_user_data(username)
 
     if user_data is None:
         raise HTTPException(status_code=404, detail=f"User {user_data.username} not found!")
@@ -130,7 +130,7 @@ async def get_user(username: str = None, user_role = Depends(RoleChecker(allowed
 async def add_user(user_data: UserForRegistration, user_role = Depends(RoleChecker(allowed_roles=["admin", "superadmin"]))):
     if user_role == "admin" and user_data.role == "superadmin" or user_role == "admin" and user_data.role == "admin":
         raise HTTPException(status_code=403, detail="Admin can't create superadmin and admin users!")
-    success = add_new_user(
+    success = await add_new_user(
         username=user_data.username,
         password=user_data.password,
         email=user_data.email,
@@ -161,17 +161,17 @@ async def add_user(user_data: UserForRegistration, user_role = Depends(RoleCheck
 )
 async def delete_user(username: str, user_role = Depends(RoleChecker(allowed_roles=["admin", "superadmin"]))):
     if user_role == "admin":
-        user_db_data = get_user_data(username=username)
+        user_db_data = await get_user_data(username=username)
         if user_db_data.role in ["admin", "superadmin"]:
             raise HTTPException(status_code=403, detail="Admin can't delete admin and superadmin users!")
-    success = delete_user_data(username=username)
+    success = await delete_user_data(username=username)
 
-    if success:
-        return BaseResponse(
-            msg=f"User {username} successfully deleted!"
-        )
-    else:
-        raise HTTPException(status_code=500, detail="Database error!")
+    if not success:
+        raise HTTPException(status_code=404, detail=f"User {username} not found!")
+
+    return BaseResponse(
+        msg=f"User {username} successfully deleted!"
+    )
 
 @main_router.patch(
     "/edit_user",
@@ -193,14 +193,14 @@ async def update_user(user_data: UserForUpdate, user_role = Depends(RoleChecker(
     if user_role == "admin" and user_data.role in ['admin', 'user']:
         raise HTTPException(status_code=403, detail="Only superadmin can update users with admin roles!")
 
-    user_to_change = get_user_data(username=user_data.username)
+    user_to_change = await get_user_data(username=user_data.username)
     if user_to_change is None:
         raise HTTPException(status_code=404, detail=f"User {user_data.username} not found!")
 
     if user_to_change.role in ["admin", "superadmin"] and user_role == "admin":
         raise HTTPException(status_code=403, detail="Only superadmin can update users with admin roles!")
     
-    success = update_user_data(
+    success = await update_user_data(
         user_data.username,
         user_data.new_username,
         user_data.email,
@@ -208,7 +208,7 @@ async def update_user(user_data: UserForUpdate, user_role = Depends(RoleChecker(
         user_data.password
         )
     
-    user_to_change = get_user_data(username=user_data.new_username)
+    user_to_change = await get_user_data(username=user_data.new_username)
 
     if success:
         return UserUpdateResponse(

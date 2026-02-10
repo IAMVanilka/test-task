@@ -1,13 +1,15 @@
 import os
 
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import MetaData
+from sqlalchemy.ext.asyncio import create_async_engine
 
-SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL", "sqlite:///database.db")
+SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL", "sqlite+aiosqlite:///database.db")
 
 metadata_obj = MetaData()
 
-engine = create_engine(
-    url=SQLALCHEMY_DATABASE_URL
+engine = create_async_engine(
+    url=SQLALCHEMY_DATABASE_URL,
+    echo=True
 )
 
 def create_tables():
